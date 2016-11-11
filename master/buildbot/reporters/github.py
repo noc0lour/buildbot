@@ -79,6 +79,11 @@ class GitHubStatusPush(http.HttpStatusPushBase):
         if context is not None:
             payload['context'] = context
 
+        if self.verbose:
+            log.msg(
+                'Status link generated: {}'.format('/'.join(['/repos',repo_user,repo_name,'statuses',sha]))
+            )
+
         return self._http.post(
             '/'.join(['/repos', repo_user, repo_name, 'statuses', sha]),
             json=payload)
