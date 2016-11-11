@@ -83,6 +83,8 @@ class GitHubStatusPush(http.HttpStatusPushBase):
             log.msg(
                 'Status link generated: {}'.format('/'.join(['/repos',repo_user,repo_name,'statuses',sha]))
             )
+            log.msg(
+                'Payload: {}'.format(payload))
 
         return self._http.post(
             '/'.join(['/repos', repo_user, repo_name, 'statuses', sha]),
