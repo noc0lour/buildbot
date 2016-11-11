@@ -140,6 +140,11 @@ class HTTPClientService(service.SharedService):
         if self._headers is not None:
             headers.update(self._headers)
         kwargs['headers'] = headers
+        log.msg(
+            'post url: {}'.format(url))
+        log.msg(
+            'post kwargs: {}'.format(kwargs)
+        )
         return url, kwargs
 
     def _doTxRequest(self, method, ep, **kwargs):
