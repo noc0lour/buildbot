@@ -19,7 +19,6 @@ from datetime import datetime
 
 from twisted.internet import defer
 from twisted.internet import reactor
-from twisted.python import log
 from twisted.web import client
 
 from buildbot.changes import base
@@ -28,6 +27,9 @@ from buildbot.util import ascii2unicode
 from buildbot.util import datetime2epoch
 from buildbot.util import epoch2datetime
 from buildbot.util import httpclientservice
+from buildbot.util.logger import Logger
+
+log = Logger()
 
 HOSTED_BASE_URL = "https://api.github.com"
 
@@ -35,7 +37,7 @@ HOSTED_BASE_URL = "https://api.github.com"
 class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
     name = "GitHubPullrequestPoller"
 
-    compare_attrs = ("owner", "repo", "token", "branch", "pollInterval",
+    compare_attrs = ("owner", "repo", "token", "branches", "pollInterval",
                      "useTimestamps", "category", "project", "pollAtLaunch")
 
     db_class_name = 'GitHubPullrequestPoller'
@@ -81,7 +83,7 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
         self.project = project
         self.encoding = encoding
 
-        if hasattr(pullrequest_filter, '__call__'):
+        if callable(pullrequest_filter):
             self.pullrequest_filter = pullrequest_filter
         else:
             self.pullrequest_filter = (lambda _: pullrequest_filter)
@@ -98,92 +100,62 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
             "GitHub repository %s/%s, branch: %s" % (
                 self.owner, self.repo, self.branch)
 
+    @defer.inlineCallbacks
     def _getPulls(self):
         self.lastPoll = time.time()
-        log.msg("GitHubPullrequestPoller: polling "
+        log.debug("GitHubPullrequestPoller: polling "
                 "GitHub repository %s/%s, branches: %s" %
                 (self.owner, self.repo, self.branches))
-        d = self._http.get(
+        result = yield self._http.get(
             '/'.join(['/repos', self.owner, self.repo, 'pulls']),
             timeout=self.pollInterval)
+        my_json = yield result.json()
+        defer.returnValue(my_json)
+        return
 
-        @d.addCallback
-        def process(github_json):
-            return github_json.json()
-
-        return d
-
+    @defer.inlineCallbacks
     def _getEmail(self, user):
-        d = self._http.get("/".join(['/users', user]),
-                           timeout=self.pollInterval)
+        result = yield self._http.get("/".join(['/users', user]),
+                                      timeout=self.pollInterval)
+        my_json = yield result.json()
+        defer.returnValue(my_json["email"])
+        return
 
-        @d.addCallback
-        def process(github_json):
-            email = github_json.json()
-
-            @email.addCallback
-            def return_email(result):
-                return result["email"]
-
-            return email
-
-        return d
-
+    @defer.inlineCallbacks
     def _getFiles(self, prnumber):
-        log.msg("GitHubPullrequestPoller: fetching changed files"
-                "GitHub repository %s/%s, Pullrequest: %s" %
-                (self.owner, self.repo, prnumber))
-        d = self._http.get("/".join([
+        result = yield self._http.get("/".join([
             '/repos', self.owner, self.repo, 'pulls', str(prnumber), 'files'
         ]),
-                           timeout=self.pollInterval)
+                                      timeout=self.pollInterval)
+        my_json = yield result.json()
 
-        @d.addCallback
-        def process(github_json):
-            files = github_json.json()
+        defer.returnValue([f["filename"] for f in my_json])
+        return
 
-            @files.addCallback
-            def return_files(my_files):
-                return [f["filename"] for f in my_files]
-
-            return files
-
-        return d
-
+    @defer.inlineCallbacks
     def _getCurrentRev(self, prnumber):
         # Get currently assigned revision of PR number
 
-        d = self._getStateObjectId()
+        result = yield self._getStateObjectId()
+        rev = yield self.master.db.state.getState(result,
+                                             'pull_request%d' % prnumber, None)
+        defer.returnValue(rev)
+        return
 
-        @d.addCallback
-        def oid_callback(oid):
-            current = self.master.db.state.getState(oid, 'pull_request%d' %
-                                                    prnumber, None)
-
-            @current.addCallback
-            def result_callback(result):
-                return result
-
-            return current
-
-        return d
-
+    @defer.inlineCallbacks
     def _setCurrentRev(self, prnumber, rev):
         # Set the updated revision for PR number.
 
-        d = self._getStateObjectId()
-
-        @d.addCallback
-        def oid_callback(oid):
-            return self.master.db.state.setState(oid, 'pull_request%d' %
-                                                 prnumber, rev)
-
-        return d
-
+        result = yield self._getStateObjectId()
+        yield self.master.db.state.setState(result,
+                                             'pull_request%d' % prnumber, rev)
+    @defer.inlineCallbacks
     def _getStateObjectId(self):
         # Return a deferred for object id in state db.
-        return self.master.db.state.getObjectId(
+        result = yield self.master.db.state.getObjectId(
             '%s/%s' % (self.owner, self.repo), self.db_class_name)
+        defer.returnValue(result)
+        return
 
     @defer.inlineCallbacks
     def _processChanges(self, github_result):
@@ -249,14 +221,13 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
                     src=u'git')
 
     def _processChangesFailure(self, f):
-        log.msg('GitHubPullrequestPoller: json api poll failed')
+        log.err('GitHubPullrequestPoller: json api poll failed')
         log.err(f)
         # eat the failure to continue along the defered chain - we still want
         # to catch up
         return None
 
+    @defer.inlineCallbacks
     def poll(self):
-        d = self._getPulls()
-        d.addCallback(self._processChanges)
-        d.addErrback(self._processChangesFailure)
-        return d
+        result = yield self._getPulls()
+        self._processChanges(result)

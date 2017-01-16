@@ -18,20 +18,37 @@ from twisted.internet import defer
 from twisted.internet import reactor
 from twisted.trial import unittest
 
+from buildbot.test.fake import httpclientservice as fakehttpclientservice
+from buildbot.test.fake import fakedb
+from buildbot.test.fake.change import Change
 from buildbot.changes.github import GitHubPullrequestPoller
 from buildbot.test.util import changesource
 
 
+
 class TestGitHubPullrequestPoller(changesource.ChangeSourceMixin, unittest.TestCase):
 
+    @defer.inlineCallbacks
     def setUp(self):
-        pass
+        return self.setUpChangeSource()
 
 
     def tearDown(self):
-        pass
+        return self.tearDownChangeSource()
+
+    @defer.inlineCallbacks
+    def newChangeSource(self, owner, repo, **kwargs):
+        http_headers = {'User-Agent': 'Buildbot'}
+        token = kwargs.pop('token', None)
+        if token:
+            http_headers.update({'Authorization': 'token ' + token})
+        s = GitHubPullrequestPoller(owner, repo, **kwargs)
+        s._http = yield fakehttpclientservice.HTTPClientService.getFakeService(
+            self.master, self, 'http://api.github.com/', headers=http_headers)
+        self.attachChangeSource(s)
+        s.configureService()
+        return s
 
 
-    def test_PR(self):
-        self.assertEqual(1,1)
+    # tests everytime we want to test something call s.expect(content_json = ) to load data to the http module
 
