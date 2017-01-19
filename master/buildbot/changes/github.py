@@ -35,12 +35,18 @@ HOSTED_BASE_URL = "https://api.github.com"
 
 
 class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
-    name = "GitHubPullrequestPoller"
-
     compare_attrs = ("owner", "repo", "token", "branches", "pollInterval",
                      "useTimestamps", "category", "project", "pollAtLaunch")
-
+    name = "GitHubPullrequestPoller"
     db_class_name = 'GitHubPullrequestPoller'
+
+    def __init__(self,
+                 owner,
+                 repo,
+                 **kwargs):
+        if not kwargs.get("name"):
+            kwargs["name"] = "GitHubPullrequestPoller:"+owner+"/"+repo
+        base.PollingChangeSource.__init__(self, owner, repo, **kwargs)
 
     @defer.inlineCallbacks
     def reconfigService(self,
@@ -59,6 +65,8 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
                         pollAtLaunch=False,
                         **kwargs):
 
+        if name is None:
+            kwargs["name"] = "GitHubPullrequestPoller:"+owner+"/"+repo
         yield base.PollingChangeSource.reconfigService(self, **kwargs)
 
         if baseURL is None:
