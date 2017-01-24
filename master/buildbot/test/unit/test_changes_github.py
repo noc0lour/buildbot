@@ -13,6 +13,7 @@
 #
 # Copyright Buildbot Team Members
 import re
+import json
 
 from twisted.internet import defer
 from twisted.internet import reactor
@@ -24,30 +25,88 @@ from buildbot.test.fake.change import Change
 from buildbot.changes.github import GitHubPullrequestPoller
 from buildbot.test.util import changesource
 
+#Copied port of result from api.github.com/repos/buildbot/buildbot/pulls
+gitJsonPayloadPullRequest = """
+[
+  {
+    "html_url": "https://github.com/buildbot/buildbot/pull/4242",
+    "number": 4242,
+    "locked": false,
+    "title": Update the README with new information,
+    "user": {
+      "login": "defunkt",
+    },
+    "body": "This is a pretty simple change that we need to pull into master.",
+    "head": {
+      "ref": "cmp3",
+      "sha": "4c9a7f03e04e551a5e012064b581577f949dd3a4",
+      "repo": {
+        "name": "buildbot"
+      }
+    },
+    "base": {
+      "ref": "master"
+      }
+    }
+]
+"""
 
+gitJsonPayloadFiles = """
+[
+  {
+    "filename": "README.md"
+  }
+]
+"""
+
+gitJsonUserPage = """
+{
+  "login": "defunkt",
+  "email": "defunkt@defunkt.null"
+}
+"""
+_CT_ENCODED = 'application/x-www-form-urlencoded'
+_CT_JSON = 'application/json'
 
 class TestGitHubPullrequestPoller(changesource.ChangeSourceMixin, unittest.TestCase):
 
     @defer.inlineCallbacks
     def setUp(self):
-        return self.setUpChangeSource()
+        yield self.setUpChangeSource()
+        yield self.master.startService()
 
-
+    @defer.inlineCallbacks
     def tearDown(self):
-        return self.tearDownChangeSource()
+        yield self.master.stopService()
+        yield self.tearDownChangeSource()
 
     @defer.inlineCallbacks
     def newChangeSource(self, owner, repo, **kwargs):
         http_headers = {'User-Agent': 'Buildbot'}
-        token = kwargs.pop('token', None)
+        token = kwargs.get('token', None)
         if token:
             http_headers.update({'Authorization': 'token ' + token})
-        s = GitHubPullrequestPoller(owner, repo, **kwargs)
-        s._http = yield fakehttpclientservice.HTTPClientService.getFakeService(
-            self.master, self, 'http://api.github.com/', headers=http_headers)
-        self.attachChangeSource(s)
-        s.configureService()
-        return s
+        self._http = yield fakehttpclientservice.HTTPClientService.getFakeService(
+            self.master, self, 'https://api.github.com', headers=http_headers)
+        self.changesource = GitHubPullrequestPoller(owner, repo, pollAtLaunch=False, **kwargs)
+
+    @defer.inlineCallbacks
+    def startChangeSource(self):
+        yield self.changesource.setServiceParent(self.master)
+        yield self.attachChangeSource(self.changesource)
+
+    @defer.inlineCallbacks
+    def test_RequestEP(self):
+        yield self.newChangeSource(
+            'defunkt', 'defunkt', token='1234')
+        self._http.expect(
+            method='get', ep='/repos/defunkt/defunkt/pulls',
+            content_json=json.dumps(gitJsonPayloadPullRequest))
+        yield self.startChangeSource()
+#        yield self.changesource.poll()
+
+        self.assertEqual(1, 1)
+
 
 
     # tests everytime we want to test something call s.expect(content_json = ) to load data to the http module

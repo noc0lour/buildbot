@@ -90,6 +90,7 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
         self.branches = branches
         self.project = project
         self.encoding = encoding
+        self.pollInterval = pollInterval
 
         if callable(pullrequest_filter):
             self.pullrequest_filter = pullrequest_filter
