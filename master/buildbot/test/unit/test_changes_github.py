@@ -32,9 +32,9 @@ gitJsonPayloadPullRequest = """
     "html_url": "https://github.com/buildbot/buildbot/pull/4242",
     "number": 4242,
     "locked": false,
-    "title": Update the README with new information,
+    "title": "Update the README with new information",
     "user": {
-      "login": "defunkt",
+      "login": "defunkt"
     },
     "body": "This is a pretty simple change that we need to pull into master.",
     "head": {
@@ -46,8 +46,8 @@ gitJsonPayloadPullRequest = """
     },
     "base": {
       "ref": "master"
-      }
     }
+  }
 ]
 """
 
@@ -88,7 +88,7 @@ class TestGitHubPullrequestPoller(changesource.ChangeSourceMixin, unittest.TestC
             http_headers.update({'Authorization': 'token ' + token})
         self._http = yield fakehttpclientservice.HTTPClientService.getFakeService(
             self.master, self, 'https://api.github.com', headers=http_headers)
-        self.changesource = GitHubPullrequestPoller(owner, repo, pollAtLaunch=False, **kwargs)
+        self.changesource = GitHubPullrequestPoller(owner, repo, pollAtLaunch=True, **kwargs)
 
     @defer.inlineCallbacks
     def startChangeSource(self):
@@ -101,7 +101,7 @@ class TestGitHubPullrequestPoller(changesource.ChangeSourceMixin, unittest.TestC
             'defunkt', 'defunkt', token='1234')
         self._http.expect(
             method='get', ep='/repos/defunkt/defunkt/pulls',
-            content_json=json.dumps(gitJsonPayloadPullRequest))
+            content=json.loads(gitJsonPayloadPullRequest))
         yield self.startChangeSource()
 #        yield self.changesource.poll()
 
