@@ -37,6 +37,7 @@ gitJsonPayloadPullRequest = """
       "login": "defunkt"
     },
     "body": "This is a pretty simple change that we need to pull into master.",
+    "updated_at": "2017-01-25T22:36:21Z",
     "head": {
       "ref": "cmp3",
       "sha": "4c9a7f03e04e551a5e012064b581577f949dd3a4",
@@ -101,9 +102,15 @@ class TestGitHubPullrequestPoller(changesource.ChangeSourceMixin, unittest.TestC
             'defunkt', 'defunkt', token='1234')
         self._http.expect(
             method='get', ep='/repos/defunkt/defunkt/pulls',
-            content=json.loads(gitJsonPayloadPullRequest))
+            content_json=json.loads(gitJsonPayloadPullRequest))
+        self._http.expect(
+            method='get', ep='/repos/defunkt/defunkt/pulls/4242/files',
+            content_json=json.loads(gitJsonPayloadFiles))
+        self._http.expect(
+            method='get', ep='/users/defunkt',
+            content_json=json.loads(gitJsonUserPage))
         yield self.startChangeSource()
-#        yield self.changesource.poll()
+        yield self.changesource.poll()
 
         self.assertEqual(1, 1)
 

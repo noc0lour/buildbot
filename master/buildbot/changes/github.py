@@ -34,19 +34,33 @@ log = Logger()
 HOSTED_BASE_URL = "https://api.github.com"
 
 
-class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
+class GitHubPullrequestPoller(base.ReconfigurablePollingChangeSource, StateMixin):
     compare_attrs = ("owner", "repo", "token", "branches", "pollInterval",
                      "useTimestamps", "category", "project", "pollAtLaunch")
     name = "GitHubPullrequestPoller"
     db_class_name = 'GitHubPullrequestPoller'
 
-    def __init__(self,
-                 owner,
-                 repo,
-                 **kwargs):
-        if not kwargs.get("name"):
-            kwargs["name"] = "GitHubPullrequestPoller:"+owner+"/"+repo
-        base.PollingChangeSource.__init__(self, owner, repo, **kwargs)
+    # def __init__(self, owner, repo, **kwargs):
+    #     if not kwargs.get("name", None):
+    #         kwargs["name"] = "GitHubPullrequestPoller:" + owner + "/" + repo
+    #     base.ReconfigurablePollingChangeSource.__init__(self, **kwargs)
+
+    def checkConfig(self,
+                    owner,
+                    repo,
+                    pollInterval=10 * 60,
+                    pollAtLaunch=False,
+                    **kwargs):
+        self.name = kwargs.get("name")
+        if not self.name:
+            self.name = "GitHubPullrequestPoller:" + owner + "/" + repo
+        base.ReconfigurablePollingChangeSource.checkConfig(
+            self,
+            name=self.name,
+            pollAtLaunch=pollAtLaunch,
+            pollInterval=pollInterval)
+        self.pollAtLaunch = pollAtLaunch
+        self.pollInterval = pollInterval
 
     @defer.inlineCallbacks
     def reconfigService(self,
@@ -66,8 +80,8 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
                         **kwargs):
 
         if name is None:
-            kwargs["name"] = "GitHubPullrequestPoller:"+owner+"/"+repo
-        yield base.PollingChangeSource.reconfigService(self, **kwargs)
+            name = "GitHubPullrequestPoller:" + owner + "/" + repo
+        yield base.ReconfigurablePollingChangeSource.reconfigService(self, name=name, **kwargs)
 
         if baseURL is None:
             baseURL = HOSTED_BASE_URL
@@ -113,8 +127,8 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
     def _getPulls(self):
         self.lastPoll = time.time()
         log.debug("GitHubPullrequestPoller: polling "
-                "GitHub repository %s/%s, branches: %s" %
-                (self.owner, self.repo, self.branches))
+                  "GitHub repository %s/%s, branches: %s" %
+                  (self.owner, self.repo, self.branches))
         result = yield self._http.get(
             '/'.join(['/repos', self.owner, self.repo, 'pulls']),
             timeout=self.pollInterval)
@@ -146,8 +160,8 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
         # Get currently assigned revision of PR number
 
         result = yield self._getStateObjectId()
-        rev = yield self.master.db.state.getState(result,
-                                             'pull_request%d' % prnumber, None)
+        rev = yield self.master.db.state.getState(result, 'pull_request%d' %
+                                                  prnumber, None)
         defer.returnValue(rev)
         return
 
@@ -157,7 +171,8 @@ class GitHubPullrequestPoller(base.PollingChangeSource, StateMixin):
 
         result = yield self._getStateObjectId()
         yield self.master.db.state.setState(result,
-                                             'pull_request%d' % prnumber, rev)
+                                            'pull_request%d' % prnumber, rev)
+
     @defer.inlineCallbacks
     def _getStateObjectId(self):
         # Return a deferred for object id in state db.
