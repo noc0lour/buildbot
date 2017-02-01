@@ -21,6 +21,7 @@ from future.utils import itervalues
 import time
 
 from twisted.internet import defer
+from twisted.internet import error
 from twisted.python import log
 from twisted.python.reflect import namedModule
 from zope.interface import implementer
@@ -296,7 +297,10 @@ class AbstractWorker(service.BuildbotService, object):
 
     def startMissingTimer(self):
         if self.notify_on_missing and self.missing_timeout and self.parent:
-            self.stopMissingTimer()  # in case it's already running
+            try:
+                self.stopMissingTimer()  # in case it's already running
+            except error.AlreadyCalled:
+                log.msg("Missing timer for worker %s already stopped." % (self.name))
             self.missing_timer = self.master.reactor.callLater(self.missing_timeout,
                                                                self._missing_timer_fired)
 
