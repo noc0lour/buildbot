@@ -383,7 +383,10 @@ class AbstractWorker(service.BuildbotService, object):
             self.path_module = namedModule("posixpath")
         log.msg("bot attached")
         self.messageReceivedFromWorker()
-        self.stopMissingTimer()
+        try:
+            self.stopMissingTimer()
+        except error.AlreadyCalled:
+            log.msg("Missing timer of worker {} was already cancelled".format(self.name))
         yield self.updateWorker()
         yield self.botmaster.maybeStartBuildsForWorker(self.name)
 
