@@ -335,7 +335,6 @@ class GitHubAuth(OAuth2Auth):
                         # Organizations can have OAuth App access restrictions enabled,
                         # disallowing team data access to third-parties.
                         continue
-                    print("{}: {}".format(org, team_data))
                     for node in team_data['teams']['edges']:
                         # On github we can mentions organization teams like
                         # @org-name/team-name. Let's keep the team formatting
