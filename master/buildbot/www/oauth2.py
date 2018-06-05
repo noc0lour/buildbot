@@ -331,11 +331,11 @@ class GitHubAuth(OAuth2Auth):
                              response=data)
                 teams = set()
                 for org, team_data in data['data'].items():
-                    print("{}: {}".format(org, team_data))
                     if team_data is None:
                         # Organizations can have OAuth App access restrictions enabled,
                         # disallowing team data access to third-parties.
                         continue
+                    print("{}: {}".format(org, team_data))
                     for node in team_data['teams']['edges']:
                         # On github we can mentions organization teams like
                         # @org-name/team-name. Let's keep the team formatting
